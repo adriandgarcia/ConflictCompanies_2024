@@ -416,11 +416,11 @@ includes all funds passive and active
 
 toplargest <- largest %>% 
   ungroup() %>% 
-  filter(total>=1000000000)
+  filter(Total>=1000000000)
 
   shares_activeShops <- conflicts %>% 
     filter(
-      Branding.Name.Mod %in% top20$Branding.Name.Mod,
+      Branding.Name.Mod %in% toplargest$Branding.Name.Mod,
       Index..Fund == "No") %>%
     group_by(Branding.Name.Mod) %>% 
   summarise(
