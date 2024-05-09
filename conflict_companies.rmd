@@ -406,16 +406,17 @@ datatable(shares_activeESGfunds)
 ```
 
 
-## Change in shares held by Active Shops
+## Change in shares held by Shops that held the most assets of the 19 as of Sept. 30
 
 
-tktktk
+cap is $1B
+includes all funds passive and active 
 
 ```{r shares_activeESGShops}
 
-top20 <- largest %>% 
+toplargest <- largest %>% 
   ungroup() %>% 
-  top_n(20)
+  filter(total>=1000000000)
 
   shares_activeShops <- conflicts %>% 
     filter(
