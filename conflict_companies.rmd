@@ -275,7 +275,35 @@ stock <- conflicts %>%
 ```
 
 
-Tkktktk
+##Largest funds
+At shop levels at least $1B as of September in the 19 for onlyc active funds.
+
+No == Non-esg
+Yes == ESG
+NA == Morningstar doesn't classify
+Total is sum all of the above
+
+```{r largest_companies}
+
+largest <- conflicts %>% 
+  filter(Index..Fund == "No") %>%
+  group_by(Branding.Name.Mod,Sustainable.Investment.Overall..2024.03) %>% 
+  summarise(Assets_in_19_q3 = sum(Position.Market.Value..2023.09..USD, na.rm = T)) %>% 
+  pivot_wider(
+    names_from = Sustainable.Investment.Overall..2024.03,
+    values_from = Assets_in_19_q3
+  ) %>% 
+  group_by(Branding.Name.Mod) %>% 
+  mutate(Total = sum(Yes, No, `NA`, na.rm = T)) %>% 
+  arrange(desc(Total))
+
+
+
+```
+
+
+tktktk
+
 
 ```{r stock_assets}
 
@@ -385,10 +413,15 @@ tktktk
 
 ```{r shares_activeESGShops}
 
+top20 <- largest %>% 
+  ungroup() %>% 
+  top_n(20)
 
-  shares_activeESGShops <- conflicts %>% 
-    filter(Index..Fund == "No") %>%
-    group_by(Branding.Name.Mod, Sustainable.Investment.Overall..2024.03) %>% 
+  shares_activeShops <- conflicts %>% 
+    filter(
+      Branding.Name.Mod %in% top20$Branding.Name.Mod,
+      Index..Fund == "No") %>%
+    group_by(Branding.Name.Mod) %>% 
   summarise(
     `Q1 2023` = sum(Shares..2023.03, na.rm = T),
     `Q2 2023` = sum(Shares..2023.06, na.rm = T),
@@ -402,7 +435,7 @@ tktktk
   ) %>% 
   arrange(desc(change))
 
-datatable(shares_activeESGShops)
+datatable(shares_activeShops)
 
 
 ```
