@@ -1,5 +1,5 @@
 ---
-title: "conflict_companies"
+title: "index"
 author: "ADG"
 date: "`r Sys.Date()`"
 output:
@@ -42,9 +42,13 @@ write_csv(data, "data_combined.csv")
 
 ```
 
-## tk
+## Initial Results
 
-TKTKTKTKTKTKTKTKKTKTKT
+We look up the ownership information for the 19 publicly traded firms tracked by AFSC. We combined the data above for the firms. 
+
+Here we limit the results to include only "Mutual Fund" products that are domiciled in the "United States" as captured by Morningstar Direct.
+
+We further limit the results to only include those with a Fund Legal Structure of "Closed Ended Investment Company" or "Open Ended Investment Company".
 
 ```{r results}
 
@@ -65,8 +69,10 @@ write_csv(results, "results.csv")
 
 ```
 
-## tktk
-TKTKTKTK
+## Getting the fund IDs
+
+For the above funds we pull unique FundIDs in the dataset to match with data from Morningstar Direct
+
 
 ```{r ids, echo=FALSE}
 
@@ -86,12 +92,17 @@ fundids <- results %>%
   filter(!is.na(FundId)) %>% 
   select(FundId) %>% 
   distinct() %>% 
-  write_csv(., "fundids2.csv")
+  write_csv(., "fundids.csv")
 
 
 ```
 
-TKTKTKTK
+##Pairing ownership data with fund info
+Using the FundIDs captured above we use the Morningstar Direct database to capture a list of correspoinding funds in the open-end fund section of Direct.
+
+Morningstar flagged it was unable to directly find matches in 61 instances. In those cases I manually searched for each fund. Where possible, missing_matched.csv resolves those cases.
+
+The end result here is to combine the funds found in Morninstar's portfolio ownership section with their corresponding data from the open-end fund section.
 
 ```{r share_data, echo=FALSE}
 
@@ -131,7 +142,11 @@ missing <- join %>%
 
 ```
 
-TKTKTKTKKTK
+##Working data
+
+Once we have combined the data we remove those with an Investment Type of "Insurance Product Fund"
+
+We also link affiliated fund shops with Branding.Name.Mod to account for some mergers and acquisitions 
 
 ```{r conflicts}
 
@@ -168,7 +183,7 @@ write_csv(conflicts, "conflicts.csv")
 
 ## Assets in 19 firms across all shops
 
-TKTKKTK
+Here we see assets held in the 19 firms at each fund shop. This includes index funds.
 
 
 ```{r all_shops_assets}
@@ -186,7 +201,7 @@ datatable(all_shops_assets)
 
 ## Count of funds invested in any of the 19 firms across all shops
 
-
+Here we see the number of funds at each shops that hold at least one the 19 firms. This includes index funds.
 
 ```{r all_shops_count}
 
@@ -203,7 +218,7 @@ datatable(all_shops_count)
 ```
 ## Assets in 19 firms across ACTIVE shops
 
-tktktktkt
+Here we see assets held in the 19 firms at each fund shop. This includes ONLY active funds.
 
 
 ```{r active_shops_assets}
@@ -220,7 +235,8 @@ datatable(active_shops_assets)
 ```
 
 ## Count of funds invested in any of the 19 firms across ACTIVE shops
-TKTKKTK
+Here we see the number of funds at each shop that hold at least one the 19 firms. This includes ONLY active funds.
+
 
 
 ```{r active_shops_count}
@@ -238,7 +254,8 @@ datatable(active_shops_count)
 
 ```
 
-tktk
+##Stocks
+This checks we have not double counted any funds holding the same firms. This is a possibility because during the data pull step we pulled various versions of the 19 firms such as domestic and international stock symbols in Direct.
 
 ```{r stocks}
 
