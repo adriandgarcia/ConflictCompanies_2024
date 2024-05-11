@@ -71,12 +71,7 @@ results <- data %>%
            !is.na(FundId) & is.na(Portfolio..Owner.Type) & Domicile == "United States",
          Fund.Legal.Structure %in% c("Closed Ended Investment Company",
                                      "Open Ended Investment Company") |
-           is.na(Fund.Legal.Structure)) %>% 
-  #Only need the non duplicated columns
-  select(
-    1:137
-  )
-
+           is.na(Fund.Legal.Structure)) 
 #This should be zero
 
 Duplicates <- results %>% 
@@ -131,7 +126,9 @@ The end result here is to combine the funds found in Morninstar's portfolio owne
 
 share_data <- results %>% 
   select(-filename) %>% 
-  filter(!is.na(FundId)) %>% 
+  #removes 12 funds identified in fundid_blank above
+  filter(!is.na(FundId)) %>%
+  ungroup() %>% 
   distinct()
 
 
@@ -307,6 +304,7 @@ Total is sum all of the above
 ```{r largest_companies}
 
 largest <- conflicts %>% 
+  filter(Index..Fund.y == "No") %>%
   group_by(Branding.Name.Mod,Sustainable.Investment.Overall..2024.03) %>% 
   summarise(Assets_in_19_q3 = sum(Position.Market.Value..2023.09..USD, na.rm = T)) %>% 
   pivot_wider(
@@ -317,7 +315,7 @@ largest <- conflicts %>%
   mutate(Total = sum(Yes, No, `NA`, na.rm = T)) %>% 
   arrange(desc(Total))
 
-
+datatable(largest)
 
 ```
 
