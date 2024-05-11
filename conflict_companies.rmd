@@ -9,6 +9,12 @@ output:
     code_folding: hide
 ---
 
+##Set Up Here
+
+We start by pulling the Detailed Owners Analysis from Morningstar Direct for the 19 companies examined on the AFSC divestment list as of May 10. The data was pulled May 10.
+
+The original data has 66,530 rows and 401 columns.
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -16,7 +22,7 @@ library(tidyverse)
 library(lubridate)
 library(DT)
 
-data_path <- "data"   # path to the data
+data_path <- "data_20240510"   # path to the data
 files <- dir(data_path, pattern = "\\.csv$", full.names = TRUE)
 
 READ <- function(FILE) {
@@ -54,16 +60,30 @@ We further limit the results to only include those with a Fund Legal Structure o
 
 
 results <- data %>% 
-  mutate(Stock = str_replace(filename, "data/MD.", ""),
-         Stock = str_replace(Stock, "(_..csv)|(_ADR.csv)", "")
+  #this section converts the file name into the holding name and ticker
+  mutate(company = str_replace(filename, "data_20240510/MD.", ""),
+         company = str_replace(company, "(_..csv)|(_ADR.csv)", ""),
+         stock = str_replace(company, "^.*_", ""),
+         company = str_replace(company, "_.*$", "")
            ) %>% 
-  select(Name, Stock, FundId, everything()) %>% 
+  select(Name, company, stock, FundId, SecId, everything()) %>% 
   filter((Portfolio..Owner.Type == "Mutual Fund" & Domicile == "United States") |
-           !is.na(FundId) & is.na(Portfolio..Owner.Type) & Domicile == "United States")
+           !is.na(FundId) & is.na(Portfolio..Owner.Type) & Domicile == "United States",
+         Fund.Legal.Structure %in% c("Closed Ended Investment Company",
+                                     "Open Ended Investment Company") |
+           is.na(Fund.Legal.Structure)) %>% 
+  #Only need the non duplicated columns
+  select(
+    1:137
+  )
 
-results <- results %>% 
-  filter(Stock != "BAESystems_BAESY",
-         Fund.Legal.Structure %in% c("Closed Ended Investment Company", "Open Ended Investment Company") | is.na(Fund.Legal.Structure))
+#This should be zero
+
+Duplicates <- results %>% 
+  group_by(company, Name, FundId) %>% 
+  count(name="total") %>% 
+  filter(total != 1)
+
 
 write_csv(results, "results.csv")
 
@@ -71,19 +91,22 @@ write_csv(results, "results.csv")
 
 ## Getting the fund IDs
 
-For the above funds we pull unique FundIDs in the dataset to match with data from Morningstar Direct
+From the above, 685 entries do not have a fund ID. we pull unique FundIDs in the dataset to match with data from Morningstar Direct
 
+I looked up the one case found where a FundId was missing but an SECId was present. The product was a CIT.
+
+The end result is 2,592 unique funds based on the IDs available.
 
 ```{r ids, echo=FALSE}
 
 fundid_present <- results %>% 
   group_by(Portfolio..Owner.Type, FundId) %>% 
-  mutate(Blank = case_when(
+  mutate(FundId_Available = case_when(
     is.na(FundId) ~ "blank",
     !is.na(FundId) ~ "present"
   )) %>% 
-  group_by(Domicile, Portfolio..Owner.Type, Blank) %>% 
-  count()
+  group_by(Domicile, Portfolio..Owner.Type, FundId_Available) %>% 
+  count(name="total")
 
 fundid_blank <- results %>% 
   filter(is.na(FundId))
@@ -107,7 +130,7 @@ The end result here is to combine the funds found in Morninstar's portfolio owne
 ```{r share_data, echo=FALSE}
 
 share_data <- results %>% 
-  select(1:82) %>% 
+  select(-filename) %>% 
   filter(!is.na(FundId)) %>% 
   distinct()
 
@@ -122,12 +145,12 @@ matches <- files %>%
 
 
 matches1 <- matches %>% 
-  select(1:78) %>% 
+  select(-filename) %>% 
   distinct()
 
 missing_identified <- read_csv("missing_matched.csv")
 
-matches2 <- left_join(matches1, missing_identified, by = "Name") %>% 
+matches2 <- left_join(matches1, missing_identified, by = c("Name"="Fund")) %>% 
   mutate(ID =
            case_when(
              !is.na(ID) ~ ID,
@@ -151,8 +174,9 @@ We also link affiliated fund shops with Branding.Name.Mod to account for some me
 ```{r conflicts}
 
 conflicts <- join %>% 
-  filter(Investment.Type.y != "Insurance Product Fund" | is.na(Investment.Type.y),
-         !is.na(Name.y)) %>% 
+  filter(Investment.Type != "Insurance Product Fund" | is.na(Investment.Type),
+         !is.na(Name.y),
+         Fund.of..Funds.y == "No") %>% 
   mutate(
     Branding.Name.Mod =
       case_when(
@@ -179,6 +203,10 @@ conflicts <- join %>%
 
 write_csv(conflicts, "conflicts.csv")
 
+currency <- join %>% 
+  group_by(Portfolio..Currency) %>% 
+  count(name="total")
+
 ```
 
 ## Assets in 19 firms across all shops
@@ -189,7 +217,6 @@ Here we see assets held in the 19 firms at each fund shop. This includes index f
 ```{r all_shops_assets}
 
 all_shops_assets <- conflicts %>% 
-  filter(Fund.of..Funds == "No") %>% 
   group_by(Branding.Name.Mod) %>% 
   summarise(Total_March24 = sum(Position.Market.Value..2024.03..USD, na.rm = T)) %>% 
   arrange(desc(Total_March24))
@@ -206,7 +233,6 @@ Here we see the number of funds at each shops that hold at least one the 19 firm
 ```{r all_shops_count}
 
 all_shops_count <- conflicts %>% 
-  filter(Fund.of..Funds == "No") %>% 
   group_by(Branding.Name.Mod, FundId) %>% 
   summarise(Funds = n()) %>% 
   group_by(Branding.Name.Mod) %>% 
@@ -224,8 +250,7 @@ Here we see assets held in the 19 firms at each fund shop. This includes ONLY ac
 ```{r active_shops_assets}
 
 active_shops_assets <- conflicts %>% 
-  filter(Fund.of..Funds == "No") %>% 
-  filter(Index..Fund == "No") %>% 
+  filter(Index..Fund.y == "No") %>% 
   group_by(Branding.Name.Mod) %>% 
   summarise(Total_March24 = sum(Position.Market.Value..2024.03..USD, na.rm = T)) %>% 
   arrange(desc(Total_March24))
@@ -242,8 +267,7 @@ Here we see the number of funds at each shop that hold at least one the 19 firms
 ```{r active_shops_count}
 
 active_shops_count <- conflicts %>%
-  filter(Fund.of..Funds == "No") %>% 
-  filter(Index..Fund == "No") %>% 
+  filter(Index..Fund.y == "No") %>% 
   group_by(Branding.Name.Mod, FundId) %>% 
   summarise(Funds = n()) %>% 
   group_by(Branding.Name.Mod) %>% 
@@ -261,13 +285,10 @@ This checks we have not double counted any funds holding the same firms. This is
 
 
 stock <- conflicts %>%
-  mutate(Stock_Clean =
-           case_when(grepl("Royce", Stock) ~ "Rolls Royce",
-         TRUE ~ Stock)) %>% 
-  group_by(Stock_Clean, Index..Fund) %>%
+  group_by(company, Index..Fund.y) %>%
   count(name = "Total") %>% 
   pivot_wider(
-    names_from = Index..Fund,
+    names_from = Index..Fund.y,
     values_from = Total
   )
 
@@ -286,7 +307,6 @@ Total is sum all of the above
 ```{r largest_companies}
 
 largest <- conflicts %>% 
-  filter(Index..Fund == "No") %>%
   group_by(Branding.Name.Mod,Sustainable.Investment.Overall..2024.03) %>% 
   summarise(Assets_in_19_q3 = sum(Position.Market.Value..2023.09..USD, na.rm = T)) %>% 
   pivot_wider(
@@ -310,13 +330,10 @@ tktktk
 
 
 stock_assets <- conflicts %>%
-  mutate(Stock_Clean =
-           case_when(grepl("Royce", Stock) ~ "Rolls Royce",
-                     TRUE ~ Stock)) %>% 
-  group_by(Stock_Clean, Index..Fund) %>%
+  group_by(company, Index..Fund.y) %>%
   summarise(Total = sum(Position.Market.Value..2024.03..USD, na.rm = T)) %>% 
   pivot_wider(
-    names_from = Index..Fund,
+    names_from = Index..Fund.y,
     values_from = Total
   )
 
@@ -331,7 +348,7 @@ tktkktk
 
 
 shares <- conflicts %>% 
-  group_by(Index..Fund) %>% 
+  group_by(Index..Fund.y) %>% 
   summarise(
     `Q1 2023` = sum(Shares..2023.03, na.rm = T),
     `Q2 2023` = sum(Shares..2023.06, na.rm = T),
@@ -357,7 +374,7 @@ datatable(shares)
 
 
 shares_activeESG <- conflicts %>% 
-  filter(Index..Fund == "No") %>%
+  filter(Index..Fund.y == "No") %>%
   group_by(Sustainable.Investment.Overall..2024.03) %>% 
   summarise(
     `Q1 2023` = sum(Shares..2023.03, na.rm = T),
@@ -385,7 +402,7 @@ datatable(shares_activeESG)
 
 
 shares_activeESGfunds <- conflicts %>% 
-    filter(Index..Fund == "No") %>%
+    filter(Index..Fund.y == "No") %>%
     group_by(Name.x, Sustainable.Investment.Overall..2024.03) %>% 
   summarise(
     `Q1 2023` = sum(Shares..2023.03, na.rm = T),
@@ -421,7 +438,7 @@ toplargest <- largest %>%
   shares_activeShops <- conflicts %>% 
     filter(
       Branding.Name.Mod %in% toplargest$Branding.Name.Mod,
-      Index..Fund == "No") %>%
+      Index..Fund.y == "No") %>%
     group_by(Branding.Name.Mod) %>% 
   summarise(
     `Q1 2023` = sum(Shares..2023.03, na.rm = T),
